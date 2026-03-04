@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    
+    <title>PDFSECURE | Pro Tools for Fast, Private Local Processing</title>
+    <meta name="description" content="Free, fast, and secure PDF and image tools. Merge PDFs, convert images to PDF, and compress photos entirely locally in your browser. No server uploads.">
+    <meta property="og:title" content="PDFSECURE | Pro PDF & Image Tools">
+    <meta property="og:description" content="Process your private files instantly in your browser. No servers, no waiting.">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        body { background: #0a0a0c; color: white; font-family: sans-serif; touch-action: manipulation; }
+        .screen { display: none; flex-direction: column; min-height: 100vh; }
+        .active { display: flex; }
+        
+        .list-item { 
+            background: #1a1a20; border: 1px solid #333; border-radius: 12px; 
+            padding: 8px 12px; margin-bottom: 8px; 
+            display: flex; align-items: center; gap: 12px;
+        }
+        .preview-box {
+            width: 50px; height: 50px; border-radius: 8px; overflow: hidden;
+            background: #000; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+            border: 1px solid #333;
+        }
+        .preview-box img { max-width: 100%; max-height: 100%; object-fit: cover; }
+        
+        .sortable-ghost { opacity: 0.3; background: #3b82f6; border-radius: 12px; }
+        .drag-handle { cursor: grab; padding: 10px; color: #444; }
+
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1); border-top: 3px solid #3b82f6;
+            border-radius: 50%; width: 20px; height: 20px;
+            animation: spin 1s linear infinite; display: inline-block; vertical-align: middle;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        .legal-content p { color: #a1a1aa; margin-bottom: 1rem; font-size: 0.9rem; line-height: 1.6; }
+        .legal-content h3 { color: #fff; font-weight: bold; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+
+        /* Custom Toast Notification Styles */
+        #toast {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: #333; color: white; padding: 12px 24px; border-radius: 8px;
+            font-size: 14px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+        }
+        #toast.show { opacity: 1; }
+        #toast.error { background: #ef4444; color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="toast">Message here</div>
+
+    <div id="screen-home" class="screen active p-6 max-w-2xl mx-auto w-full">
+        <h1 class="text-3xl font-black mt-10 mb-2 text-white">PDF<span class="text-blue-500">SECURE</span></h1>
+        <p class="text-zinc-500 text-sm mb-8">Fast. Private. Local Processing.</p>
+
+        <div class="space-y-4 mb-10">
+            <button onclick="switchScreen('screen-converter')" class="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5 active:scale-[0.98] transition text-left">
+                <div class="w-12 h-12 bg-orange-500/10 rounded-xl flex items-center justify-center"><i class="fas fa-images text-orange-500 text-xl"></i></div>
+                <div><div class="font-bold">Images to PDF</div><div class="text-xs text-zinc-500">JPG/PNG only</div></div>
+            </button>
+
+            <button onclick="switchScreen('screen-merger')" class="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5 active:scale-[0.98] transition text-left">
+                <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center"><i class="fas fa-layer-group text-emerald-500 text-xl"></i></div>
+                <div><div class="font-bold">Merge PDF</div><div class="text-xs text-zinc-500">Combine multiple PDF files</div></div>
+            </button>
+
+            <button onclick="switchScreen('screen-compressor')" class="w-full bg-zinc-900 border border-zinc-800 p-6 rounded-2xl flex items-center gap-5 active:scale-[0.98] transition text-left">
+                <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center"><i class="fas fa-compress-arrows-alt text-blue-500 text-xl"></i></div>
+                <div><div class="font-bold">Smart Image Reducer</div><div class="text-xs text-zinc-500">Shrink images without quality loss</div></div>
+            </button>
+        </div>
+
+        <footer class="mt-auto pt-10 border-t border-zinc-800 flex justify-center gap-6 text-xs text-zinc-500">
+            <button onclick="switchScreen('screen-about')" class="hover:text-blue-400">About Us</button>
+            <button onclick="switchScreen('screen-privacy')" class="hover:text-blue-400">Privacy Policy</button>
+        </footer>
+    </div>
+
+    <div id="screen-about" class="screen p-5 max-w-2xl mx-auto w-full flex-1">
+        <div class="flex items-center justify-between mb-6">
+            <button onclick="switchScreen('screen-home')" class="text-zinc-400 p-2"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="font-bold text-lg">About PDFSECURE</h2><div class="w-10"></div>
+        </div>
+        <div class="legal-content">
+            <p>PDFSECURE is a professional-grade web utility designed for users who prioritize privacy and speed. Unlike traditional online converters, our tool performs all processing <strong>locally in your browser</strong>.</p>
+            <h3>How it works</h3>
+            <p>We use modern WebAssembly and JavaScript libraries to manipulate your files directly on your device. Your photos and documents are never uploaded to our servers.</p>
+        </div>
+    </div>
+
+    <div id="screen-privacy" class="screen p-5 max-w-2xl mx-auto w-full flex-1">
+        <div class="flex items-center justify-between mb-6">
+            <button onclick="switchScreen('screen-home')" class="text-zinc-400 p-2"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="font-bold text-lg">Privacy Policy</h2><div class="w-10"></div>
+        </div>
+        <div class="legal-content overflow-y-auto">
+            <p>Last updated: March 2024</p>
+            <h3>1. Data Processing</h3>
+            <p>PDFSECURE operates on a "Zero-Server" model. All file conversions happen locally. We do not store, view, or collect the contents of the files you process.</p>
+            <h3>2. Third-Party Advertising</h3>
+            <p>We use third-party advertising companies to serve ads. These companies may use cookies and identifiers to collect information about your visits to provide relevant advertisements.</p>
+        </div>
+    </div>
+
+    <div id="screen-converter" class="screen p-5 max-w-2xl mx-auto w-full flex-1">
+        <div class="flex items-center justify-between mb-6">
+            <button onclick="switchScreen('screen-home')" class="text-zinc-400 p-2"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="font-bold text-lg">Images to PDF</h2><div class="w-10"></div>
+        </div>
+        <input type="file" id="img-input" multiple accept=".jpg, .jpeg, .png" class="hidden" onchange="handleFileUpload(event, 'convert')">
+        <button onclick="document.getElementById('img-input').click()" class="bg-orange-600/10 border-2 border-dashed border-orange-600/30 p-8 rounded-2xl text-center mb-4 w-full active:scale-[0.98] transition">
+            <i class="fas fa-plus text-2xl text-orange-500 mb-2"></i><br><span class="text-orange-400 font-bold">Add JPG or PNG</span>
+        </button>
+        <div id="convert-list" class="flex-1 overflow-y-auto mb-24 space-y-2"></div>
+        <div class="fixed bottom-0 left-0 right-0 p-5 bg-black/90 backdrop-blur-md border-t border-white/5">
+            <button id="btn-convert" onclick="executeConvert()" class="w-full bg-orange-600 py-4 rounded-xl font-bold">GENERATE PDF</button>
+        </div>
+    </div>
+
+    <div id="screen-merger" class="screen p-5 max-w-2xl mx-auto w-full flex-1">
+        <div class="flex items-center justify-between mb-6">
+            <button onclick="switchScreen('screen-home')" class="text-zinc-400 p-2"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="font-bold text-lg">Merge PDFs</h2><div class="w-10"></div>
+        </div>
+        <input type="file" id="pdf-input" multiple accept=".pdf" class="hidden" onchange="handleFileUpload(event, 'merge')">
+        <button onclick="document.getElementById('pdf-input').click()" class="bg-emerald-600/10 border-2 border-dashed border-emerald-600/30 p-8 rounded-2xl text-center mb-4 w-full active:scale-[0.98] transition">
+            <i class="fas fa-file-pdf text-2xl text-emerald-500 mb-2"></i><br><span class="text-emerald-400 font-bold">Add PDF Files</span>
+        </button>
+        <div id="merge-list" class="flex-1 overflow-y-auto mb-24 space-y-2"></div>
+        <div class="fixed bottom-0 left-0 right-0 p-5 bg-black/90 backdrop-blur-md border-t border-white/5">
+            <button id="btn-merge" onclick="executeMerge()" class="w-full bg-emerald-600 py-4 rounded-xl font-bold">MERGE NOW</button>
+        </div>
+    </div>
+
+    <div id="screen-compressor" class="screen p-5 max-w-2xl mx-auto w-full flex-1">
+        <div class="flex items-center justify-between mb-6">
+            <button onclick="switchScreen('screen-home')" class="text-zinc-400 p-2"><i class="fas fa-arrow-left"></i></button>
+            <h2 class="font-bold text-lg">Smart Reducer</h2><div class="w-10"></div>
+        </div>
+        <input type="file" id="comp-input" multiple accept=".jpg, .jpeg, .png" class="hidden" onchange="handleFileUpload(event, 'compress')">
+        <button onclick="document.getElementById('comp-input').click()" class="bg-blue-600/10 border-2 border-dashed border-blue-600/30 p-8 rounded-2xl text-center mb-4 w-full active:scale-[0.98] transition">
+            <i class="fas fa-images text-2xl text-blue-500 mb-2"></i><br><span class="text-blue-400 font-bold">Select JPG/PNG</span>
+        </button>
+        <div id="compress-list" class="flex-1 overflow-y-auto mb-24 space-y-2"></div>
+        <div class="fixed bottom-0 left-0 right-0 p-5 bg-black/90 backdrop-blur-md border-t border-white/5">
+            <button id="btn-compress" onclick="executeCompress()" class="w-full bg-blue-600 py-4 rounded-xl font-bold">START COMPRESSION</button>
+        </div>
+    </div>
+
+    <script>
+        let state = { merge: [], convert: [], compress: [] };
+        let sortables = { merge: null, convert: null, compress: null };
+        const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB Limit
+
+        // Custom UI Notification
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.innerText = message;
+            if (isError) toast.classList.add('error');
+            else toast.classList.remove('error');
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        function switchScreen(id) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            window.scrollTo(0, 0);
+        }
+
+        function clearStateAndUI(type, btnId, originalText) {
+            setTimeout(() => {
+                state[type].forEach(item => { if (item.url) URL.revokeObjectURL(item.url); });
+                state[type] = [];
+                renderList(type);
+                const btn = document.getElementById(btnId);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }, 1500); 
+        }
+
+        function handleFileUpload(event, type) {
+            const allowedImages = ['image/jpeg', 'image/jpg', 'image/png'];
+            const files = Array.from(event.target.files);
+            
+            files.forEach(file => {
+                if ((type === 'convert' || type === 'compress') && !allowedImages.includes(file.type)) return;
+                if (type === 'merge' && file.type !== 'application/pdf') return;
+                
+                // Add strict file size checking (50MB) to prevent browser crashing
+                if (file.size > MAX_FILE_SIZE) {
+                    showToast(`${file.name} is too large. Max size is 50MB.`, true);
+                    return;
+                }
+
+                const url = (type === 'convert' || type === 'compress') ? URL.createObjectURL(file) : null;
+                state[type].push({ file, url });
+            });
+            renderList(type);
+            event.target.value = '';
+        }
+
+        function removeFile(index, type) {
+            if (state[type][index].url) URL.revokeObjectURL(state[type][index].url);
+            state[type].splice(index, 1);
+            renderList(type);
+        }
+
+        function renderList(type) {
+            const container = document.getElementById(`${type}-list`);
+            container.innerHTML = '';
+            state[type].forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                let preview = item.url ? `<img src="${item.url}">` : `<i class="fas fa-file-pdf text-emerald-500 text-xl"></i>`;
+                div.innerHTML = `
+                    <div class="drag-handle"><i class="fas fa-grip-lines"></i></div>
+                    <div class="preview-box">${preview}</div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-medium truncate">${item.file.name}</div>
+                        <div class="text-[10px] text-zinc-500">${(item.file.size/1024/1024).toFixed(2)} MB</div>
+                    </div>
+                    <button onclick="removeFile(${index}, '${type}')" class="p-2 text-zinc-400 hover:text-red-400"><i class="fas fa-trash-can"></i></button>`;
+                container.appendChild(div);
+            });
+
+            if(sortables[type]) sortables[type].destroy();
+            sortables[type] = new Sortable(container, {
+                handle: '.drag-handle', animation: 150, ghostClass: 'sortable-ghost',
+                onEnd: (e) => {
+                    const moved = state[type].splice(e.oldIndex, 1)[0];
+                    state[type].splice(e.newIndex, 0, moved);
+                    renderList(type); 
+                }
+            });
+        }
+
+        async function executeCompress() {
+            if (state.compress.length === 0) return;
+            const btn = document.getElementById('btn-compress');
+            btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> PROCESSING...`;
+
+            try {
+                const zip = new JSZip(); 
+                let singleBlob = null;
+                let singleName = "";
+
+                for (const item of state.compress) {
+                    await new Promise(r => setTimeout(r, 20)); 
+                    const blob = await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            const canvas = document.createElement('canvas');
+                            let w = img.width, h = img.height;
+                            const MAX = 2000;
+                            if (w > MAX || h > MAX) {
+                                if (w > h) { h *= MAX/w; w = MAX; } else { w *= MAX/h; h = MAX; }
+                            }
+                            canvas.width = w; canvas.height = h;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0, w, h);
+                            canvas.toBlob(resolve, 'image/jpeg', 0.7); 
+                        };
+                        img.onerror = () => reject(new Error("Image loaded failed"));
+                        img.src = item.url;
+                    });
+                    
+                    const baseName = item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name;
+                    const newName = `reduced_${baseName}.jpg`;
+
+                    if (state.compress.length === 1) {
+                        singleBlob = blob;
+                        singleName = newName;
+                    } else {
+                        zip.file(newName, blob);
+                    }
+                }
+
+                if (state.compress.length === 1) {
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(singleBlob);
+                    link.download = singleName;
+                    link.click();
+                } else {
+                    btn.innerHTML = `<span class="spinner"></span> ZIPPING...`;
+                    await new Promise(r => setTimeout(r, 20));
+                    const zipBlob = await zip.generateAsync({type: "blob"});
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(zipBlob);
+                    link.download = `Compressed_Images_${Date.now()}.zip`;
+                    link.click();
+                }
+                
+                showToast("Compression successful!");
+                clearStateAndUI('compress', 'btn-compress', 'START COMPRESSION');
+
+            } catch (error) {
+                console.error(error);
+                showToast("An error occurred during compression.", true);
+                btn.disabled = false; btn.innerText = "START COMPRESSION";
+            }
+        }
+
+        async function executeConvert() {
+            if (state.convert.length === 0) return;
+            const btn = document.getElementById('btn-convert');
+            btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> SAVING PDF...`;
+            
+            try {
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                const pw = pdf.internal.pageSize.getWidth();
+                const ph = pdf.internal.pageSize.getHeight();
+
+                for (let i = 0; i < state.convert.length; i++) {
+                    await new Promise(r => setTimeout(r, 20)); 
+                    if (i > 0) pdf.addPage();
+                    
+                    const item = state.convert[i];
+                    const isPNG = item.file.type === 'image/png';
+                    const format = isPNG ? 'PNG' : 'JPEG';
+
+                    const img = await new Promise((resolve, reject) => {
+                        const image = new Image();
+                        image.onload = () => resolve(image);
+                        image.onerror = () => reject(new Error("Failed to load image for PDF"));
+                        image.src = item.url;
+                    });
+
+                    const props = pdf.getImageProperties(img);
+                    let dw = pw, dh = (props.height * pw) / props.width;
+                    if (dh > ph) { dh = ph; dw = (props.width * ph) / props.height; }
+                    
+                    pdf.addImage(img, format, (pw-dw)/2, (ph-dh)/2, dw, dh, undefined, 'FAST');
+                }
+                
+                pdf.save(`Document_${Date.now()}.pdf`);
+                showToast("PDF Generated!");
+                clearStateAndUI('convert', 'btn-convert', 'GENERATE PDF');
+
+            } catch (error) {
+                console.error(error);
+                showToast("Failed to generate PDF from images.", true);
+                btn.disabled = false; btn.innerText = "GENERATE PDF";
+            }
+        }
+
+        async function executeMerge() {
+            if (state.merge.length < 2) {
+                showToast("Select at least 2 PDFs to merge.", true);
+                return;
+            }
+            const btn = document.getElementById('btn-merge');
+            btn.disabled = true; btn.innerHTML = `<span class="spinner"></span> MERGING...`;
+            
+            try {
+                await new Promise(r => setTimeout(r, 20)); 
+                const merged = await PDFLib.PDFDocument.create();
+                
+                for (const item of state.merge) {
+                    await new Promise(r => setTimeout(r, 20)); 
+                    const bytes = await item.file.arrayBuffer();
+                    const doc = await PDFLib.PDFDocument.load(bytes);
+                    const pages = await merged.copyPages(doc, doc.getPageIndices());
+                    pages.forEach(p => merged.addPage(p));
+                }
+                
+                btn.innerHTML = `<span class="spinner"></span> SAVING...`;
+                await new Promise(r => setTimeout(r, 20)); 
+                
+                const bytes = await merged.save();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(new Blob([bytes], {type:'application/pdf'}));
+                link.download = `Merged_${Date.now()}.pdf`;
+                link.click();
+                
+                showToast("PDFs Merged Successfully!");
+                clearStateAndUI('merge', 'btn-merge', 'MERGE NOW');
+
+            } catch (e) { 
+                console.error(e);
+                showToast("Merge failed. Ensure files aren't encrypted or corrupted.", true); 
+                btn.disabled = false; btn.innerText = "MERGE NOW";
+            }
+        }
+    </script>
+</body>
+</html>
