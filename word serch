@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Word Focus</title>
+    <script src="https://game-player.poki.com/core/v2/poki-sdk.js"></script>
+    <style>
+        body {
+            margin: 0; background-color: #121212; color: #e0e0e0;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex; flex-direction: column; align-items: center; 
+            min-height: 100vh; padding: 20px; box-sizing: border-box;
+            user-select: none; touch-action: manipulation;
+        }
+
+        h1 { margin: 0 0 10px 0; font-size: 2rem; color: #ffffff; text-transform: uppercase; }
+        #instructions { font-size: 0.9rem; margin-bottom: 10px; color: #aaaaaa; text-align: center; }
+
+        /* Header Stats */
+        #header-stats {
+            display: none; justify-content: space-between; align-items: center;
+            width: 100%; max-width: 500px; margin-bottom: 15px;
+            font-size: 1.1rem; font-weight: bold; background: #1e1e1e;
+            padding: 10px 15px; border-radius: 8px; box-sizing: border-box;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        #level-display { color: #3498db; }
+        #timer-display { color: #ff5252; }
+        
+        /* Pause Button inside Header */
+        #pause-btn {
+            background: none; border: none; color: white; font-size: 1.5rem;
+            cursor: pointer; padding: 0; box-shadow: none; margin-top: 0;
+        }
+
+        #game-area {
+            display: none; flex-direction: column; gap: 20px; width: 100%; max-width: 500px;
+        }
+
+        #grid {
+            display: grid; gap: 2px; background: #333333; padding: 4px;
+            border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+        }
+
+        .cell {
+            background: #242424; color: #e0e0e0; aspect-ratio: 1; display: flex; 
+            align-items: center; justify-content: center;
+            font-size: 1.2rem; font-weight: bold; cursor: pointer;
+            border-radius: 4px; transition: 0.2s;
+        }
+
+        .cell:hover { background: #3a3a3a; }
+        .cell.found { background: #2e7d32; color: #ffffff; }
+        .cell.selected { background: #f1c40f !important; color: #121212 !important; transform: scale(0.9); }
+
+        #word-list {
+            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center;
+            background: #1e1e1e; padding: 15px; border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); border: 2px dashed #555555;
+        }
+
+        .word {
+            font-size: 1.1rem; font-weight: bold; padding: 5px 10px;
+            border-radius: 20px; background: #333333; color: #cccccc; transition: 0.3s;
+        }
+
+        .word.active-word {
+            background: #f1c40f; color: #121212; transform: scale(1.1);
+            box-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+        }
+
+        .word.found {
+            text-decoration: line-through; background: #2e7d32; color: white; opacity: 0.6;
+        }
+
+        .screen {
+            display: none; flex-direction: column; align-items: center;
+            margin-top: 20px; text-align: center; background: #1e1e1e;
+            padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+        }
+
+        button {
+            background: #3498db; color: white; border: none; padding: 12px 24px;
+            font-size: 1.2rem; font-weight: bold; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-family: inherit; margin-top: 15px;
+        }
+        button.ad-btn { background: #e67e22; }
+        button:active { transform: translateY(2px); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+
+        .reward-text { color: #4CAF50; font-size: 1.5rem; margin-top: 5px; margin-bottom: 15px;}
+    </style>
+</head>
+<body>
+
+    <h1>Word Focus</h1>
+    <div id="instructions">Loading words...</div>
+
+    <div id="header-stats">
+        <span id="level-display"></span>
+        <span id="lives-display"></span>
+        <span id="timer-display">⏱️ 45s</span>
+        <button id="pause-btn" onclick="pauseGame()">⏸️</button>
+    </div>
+
+    <div id="game-area">
+        <div id="grid"></div>
+        <div id="word-list"></div>
+    </div>
+
+    <div id="win-screen" class="screen">
+        <h2>Level Complete! 🎯</h2>
+        <div class="reward-text" id="reward-message">+1 Life ❤️</div>
+        <button onclick="nextLevel()">Next Level</button>
+    </div>
+
+    <div id="game-over-screen" class="screen">
+        <h2>Out of Lives! 💔</h2>
+        <p>You ran out of time.</p>
+        <button class="ad-btn" onclick="watchAd()">📺 Watch Ad to Refill Lives</button>
+    </div>
+
+    <div id="pause-screen" class="screen">
+        <h2>Game Paused ⏸️</h2>
+        <button onclick="resumeGame()">Resume Game</button>
+    </div>
+
+    <script>
+        // --- BULLETPROOF POKI FALLBACK ---
+        // Runs instantly. If your ISP/Router blocks Poki, this creates a fake SDK so the game never crashes.
+        if (typeof PokiSDK === 'undefined') {
+            console.warn("Poki SDK blocked by network. Loading dummy SDK to prevent crash.");
+            window.PokiSDK = {
+                init: () => Promise.resolve(),
+                gameLoadingStart: () => {},
+                gameLoadingFinished: () => {},
+                gameplayStart: () => {},
+                gameplayStop: () => {},
+                commercialBreak: () => Promise.resolve(),
+                rewardedBreak: () => Promise.resolve(false)
+            };
+        }
+
+        const GRID_SIZE = 10;
+        const WORDS_URL = 'words.txt'; 
+
+        let masterWordBank = [];
+        let availableWords = [];
+        let usedWords = [];
+        let grid = [];
+        let wordsToFind = [];
+        let selectedCell = null;
+        let currentLevel = 1;
+        let lives = 7;
+        let currentWordIndex = 0;
+        let timeLeft = 45;
+        let timerInterval = null;
+
+        let gridEl, wordListEl, winScreen, gameOverScreen, pauseScreen, instructionsEl, gameAreaEl, headerStatsEl, livesDisplay, timerDisplay, levelDisplay, rewardMessage;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            gridEl = document.getElementById('grid');
+            wordListEl = document.getElementById('word-list');
+            winScreen = document.getElementById('win-screen');
+            gameOverScreen = document.getElementById('game-over-screen');
+            pauseScreen = document.getElementById('pause-screen');
+            instructionsEl = document.getElementById('instructions');
+            gameAreaEl = document.getElementById('game-area');
+            headerStatsEl = document.getElementById('header-stats');
+            livesDisplay = document.getElementById('lives-display');
+            timerDisplay = document.getElementById('timer-display');
+            levelDisplay = document.getElementById('level-display');
+            rewardMessage = document.getElementById('reward-message');
+
+            // --- POKI SDK INITIALIZATION ---
+            PokiSDK.init().then(() => {
+                PokiSDK.gameLoadingStart(); 
+                loadWords();
+            }).catch(() => {
+                PokiSDK.gameLoadingStart(); 
+                loadWords(); 
+            });
+        });
+
+        function loadSaveData() {
+            let savedLevel = parseInt(localStorage.getItem('wordFocus_level'));
+            if (!isNaN(savedLevel)) currentLevel = savedLevel;
+
+            let savedLives = parseInt(localStorage.getItem('wordFocus_lives'));
+            if (!isNaN(savedLives) && savedLives > 0) {
+                lives = savedLives;
+            } else {
+                lives = 7; 
+            }
+
+            let savedUsedWords = JSON.parse(localStorage.getItem('wordFocus_usedWords'));
+            if (savedUsedWords) usedWords = savedUsedWords;
+        }
+
+        function saveGameData() {
+            localStorage.setItem('wordFocus_level', currentLevel);
+            localStorage.setItem('wordFocus_lives', lives);
+            localStorage.setItem('wordFocus_usedWords', JSON.stringify(usedWords));
+        }
+
+        async function loadWords() {
+            try {
+                loadSaveData();
+
+                const response = await fetch(WORDS_URL);
+                if (!response.ok) throw new Error("File not found");
+                
+                const text = await response.text();
+                masterWordBank = text.split(/\r?\n/)
+                                     .map(w => w.trim().toUpperCase())
+                                     .filter(w => w.length >= 3 && w.length <= GRID_SIZE);
+                
+                availableWords = masterWordBank.filter(w => !usedWords.includes(w));
+                
+                instructionsEl.innerHTML = "Find the highlighted word before time runs out!";
+                
+                PokiSDK.gameLoadingFinished(); 
+                initGame();
+                
+            } catch (error) {
+                instructionsEl.innerHTML = "<span style='color: #ff5252;'>Error: Could not load words.txt.</span>";
+                console.error(error);
+            }
+        }
+
+        function updateUI() {
+            levelDisplay.innerText = `Level ${currentLevel}`;
+            livesDisplay.innerText = '❤️'.repeat(lives);
+            saveGameData(); 
+        }
+
+        function startTimer() {
+            timeLeft = 45;
+            resumeTimer();
+        }
+
+        function resumeTimer() {
+            clearInterval(timerInterval);
+            timerDisplay.innerText = `⏱️ ${timeLeft}s`;
+            
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                timerDisplay.innerText = `⏱️ ${timeLeft}s`;
+                
+                if (timeLeft <= 0) {
+                    loseLife();
+                }
+            }, 1000);
+        }
+
+        function pauseGame() {
+            clearInterval(timerInterval);
+            PokiSDK.gameplayStop();
+
+            PokiSDK.commercialBreak().then(() => {
+                gameAreaEl.style.display = "none";
+                pauseScreen.style.display = "flex";
+            });
+        }
+
+        function resumeGame() {
+            pauseScreen.style.display = "none";
+            gameAreaEl.style.display = "flex";
+            
+            PokiSDK.gameplayStart(); 
+            resumeTimer();
+        }
+
+        function loseLife() {
+            clearInterval(timerInterval);
+            lives--;
+            updateUI();
+
+            if (lives <= 0) {
+                PokiSDK.gameplayStop(); 
+                gameAreaEl.style.display = "none";
+                headerStatsEl.style.display = "none";
+                gameOverScreen.style.display = "flex";
+            } else {
+                timerDisplay.style.color = "red";
+                setTimeout(() => {
+                    timerDisplay.style.color = "#ff5252";
+                    startTimer(); 
+                }, 500);
+            }
+        }
+
+        function watchAd() {
+            PokiSDK.rewardedBreak().then((success) => {
+                if (success) {
+                    lives = 7;
+                    updateUI();
+                    
+                    gameOverScreen.style.display = "none";
+                    headerStatsEl.style.display = "flex";
+                    gameAreaEl.style.display = "flex";
+                    
+                    PokiSDK.gameplayStart(); 
+                    startTimer(); 
+                } else {
+                    alert("Ad was skipped! Try again to refill lives.");
+                }
+            });
+        }
+
+        function nextLevel() {
+            currentLevel++;
+            saveGameData();
+            initGame();
+        }
+
+        function initGame() {
+            clearInterval(timerInterval);
+            gridEl.style.gridTemplateColumns = `repeat(${GRID_SIZE}, 1fr)`;
+            winScreen.style.display = "none";
+            gameOverScreen.style.display = "none";
+            pauseScreen.style.display = "none";
+            headerStatsEl.style.display = "flex";
+            gameAreaEl.style.display = "flex";
+            
+            selectedCell = null;
+            currentWordIndex = 0;
+            
+            updateUI();
+
+            if (availableWords.length < 6) {
+                usedWords = [];
+                availableWords = [...masterWordBank];
+            }
+
+            availableWords.sort(() => 0.5 - Math.random());
+            wordsToFind = availableWords.splice(0, 6);
+            usedWords.push(...wordsToFind);
+            saveGameData();
+
+            grid = Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill(''));
+            wordsToFind.forEach(word => placeWord(word));
+
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (grid[r][c] === '') {
+                        grid[r][c] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                    }
+                }
+            }
+
+            renderGrid();
+            renderWordList();
+            
+            PokiSDK.gameplayStart(); 
+            startTimer();
+        }
+
+        function placeWord(word) {
+            const dirs = [ [0, 1], [1, 0], [1, 1], [-1, 1], [0, -1], [-1, 0], [-1, -1], [1, -1] ];
+            let placed = false;
+            let attempts = 0;
+
+            while (!placed && attempts < 100) {
+                let r = Math.floor(Math.random() * GRID_SIZE);
+                let c = Math.floor(Math.random() * GRID_SIZE);
+                let [dr, dc] = dirs[Math.floor(Math.random() * dirs.length)];
+
+                if (canPlaceWord(word, r, c, dr, dc)) {
+                    for (let i = 0; i < word.length; i++) {
+                        grid[r + i * dr][c + i * dc] = word[i];
+                    }
+                    placed = true;
+                }
+                attempts++;
+            }
+        }
+
+        function canPlaceWord(word, r, c, dr, dc) {
+            for (let i = 0; i < word.length; i++) {
+                let nr = r + i * dr;
+                let nc = c + i * dc;
+                if (nr < 0 || nr >= GRID_SIZE || nc < 0 || nc >= GRID_SIZE) return false;
+                if (grid[nr][nc] !== '' && grid[nr][nc] !== word[i]) return false;
+            }
+            return true;
+        }
+
+        function renderGrid() {
+            gridEl.innerHTML = '';
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    let cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.innerText = grid[r][c];
+                    cell.dataset.r = r;
+                    cell.dataset.c = c;
+                    cell.addEventListener('click', () => handleCellClick(r, c));
+                    gridEl.appendChild(cell);
+                }
+            }
+        }
+
+        function renderWordList() {
+            wordListEl.innerHTML = '';
+            wordsToFind.forEach((word, index) => {
+                let wordEl = document.createElement('div');
+                wordEl.className = 'word';
+                wordEl.id = `word-${word}`;
+                wordEl.innerText = word;
+                
+                if (index < currentWordIndex) {
+                    wordEl.classList.add('found');
+                } else if (index === currentWordIndex) {
+                    wordEl.classList.add('active-word');
+                }
+                
+                wordListEl.appendChild(wordEl);
+            });
+        }
+
+        function handleCellClick(r, c) {
+            let cellEl = document.querySelector(`.cell[data-r='${r}'][data-c='${c}']`);
+            
+            if (!selectedCell) {
+                selectedCell = { r, c };
+                cellEl.classList.add('selected');
+                return;
+            }
+
+            let r1 = selectedCell.r, c1 = selectedCell.c, r2 = r, c2 = c;
+            document.querySelector(`.cell[data-r='${r1}'][data-c='${c1}']`).classList.remove('selected');
+            selectedCell = null;
+
+            let dr = r2 - r1, dc = c2 - c1;
+            let steps = Math.max(Math.abs(dr), Math.abs(dc));
+
+            if (steps === 0 || (Math.abs(dr) !== Math.abs(dc) && dr !== 0 && dc !== 0)) return; 
+
+            dr = dr === 0 ? 0 : dr / Math.abs(dr); 
+            dc = dc === 0 ? 0 : dc / Math.abs(dc);
+
+            let selectedString = "";
+            let path = [];
+            for (let i = 0; i <= steps; i++) {
+                let nr = r1 + i * dr, nc = c1 + i * dc;
+                selectedString += grid[nr][nc];
+                path.push({ r: nr, c: nc });
+            }
+
+            let activeWord = wordsToFind[currentWordIndex];
+            let match = (activeWord === selectedString || activeWord === selectedString.split('').reverse().join(''));
+
+            if (match) {
+                path.forEach(pos => {
+                    document.querySelector(`.cell[data-r='${pos.r}'][data-c='${pos.c}']`).classList.add('found');
+                });
+                
+                currentWordIndex++; 
+                
+                if (currentWordIndex === wordsToFind.length) {
+                    clearInterval(timerInterval);
+                    PokiSDK.gameplayStop(); 
+                    
+                    if (lives < 7) {
+                        lives++; 
+                        rewardMessage.innerText = "+1 Life ❤️";
+                    } else {
+                        rewardMessage.innerText = "Max Lives! ❤️";
+                    }
+                    
+                    saveGameData(); 
+                    
+                    gameAreaEl.style.display = "none";
+                    headerStatsEl.style.display = "none";
+                    winScreen.style.display = "flex";
+                } else {
+                    renderWordList();
+                }
+            }
+        }
+    </script>
+</body>
+</html>
