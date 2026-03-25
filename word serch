@@ -6,26 +6,29 @@
     <title>Word Focus</title>
     <script src="https://game-cdn.poki.com/scripts/v2/poki-sdk.js"></script>
     <style>
+        /* =========================================
+           RESPONSIVE BASE & FULL SCREEN FIXES
+           ========================================= */
         body {
             margin: 0; background-color: #121212; color: #e0e0e0;
             font-family: 'Courier New', Courier, monospace;
             display: flex; flex-direction: column; align-items: center; 
-            min-height: 100vh; padding: 20px; box-sizing: border-box;
+            height: 100dvh; width: 100vw; padding: 10px; box-sizing: border-box;
             user-select: none; touch-action: manipulation;
-            overflow-x: hidden;
+            overflow: hidden; /* Lock the screen */
         }
 
-        h1 { margin: 0 0 10px 0; font-size: 2rem; color: #ffffff; text-transform: uppercase; text-align: center; }
+        h1 { margin: 0 0 10px 0; font-size: clamp(1.2rem, 3dvh, 1.8rem); color: #ffffff; text-transform: uppercase; text-align: center; }
         #instructions { font-size: 0.9rem; margin-bottom: 10px; color: #aaaaaa; text-align: center; }
 
         /* Header Stats */
         #header-stats {
             display: none; justify-content: space-between; align-items: center;
-            width: 100%; max-width: 500px; margin-bottom: 15px;
-            font-size: 1.1rem; font-weight: bold; background: #1e1e1e;
+            width: 100%; max-width: 1000px; margin-bottom: 10px;
+            font-size: clamp(0.9rem, 2.5vw, 1.1rem); font-weight: bold; background: #1e1e1e;
             padding: 10px 15px; border-radius: 8px; box-sizing: border-box;
             box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            transition: max-width 0.3s;
+            flex-shrink: 0;
         }
         #level-display { color: #3498db; }
         #timer-display { color: #ff5252; }
@@ -35,21 +38,26 @@
             cursor: pointer; padding: 0; box-shadow: none; margin-top: 0;
         }
 
+        /* Responsive Game Area */
         #game-area {
-            display: none; flex-direction: column; gap: 20px; width: 100%; max-width: 500px;
-            align-items: center; transition: max-width 0.3s;
+            display: none; flex-direction: column; gap: 15px; 
+            width: 100%; max-width: 1000px;
+            align-items: center; justify-content: center;
+            flex: 1; min-height: 0; /* Allows children to shrink correctly */
         }
 
         #grid {
             display: grid; gap: 2px; background: #333333; padding: 4px;
             border-radius: 8px; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-            width: 100%; aspect-ratio: 1; /* Forces the grid to stay a perfect square */
+            /* Fills space automatically while staying a square */
+            width: 100%; max-width: min(95vw, 60dvh);
+            aspect-ratio: 1; flex-shrink: 0;
         }
 
         .cell {
             background: #242424; color: #e0e0e0; aspect-ratio: 1; display: flex; 
             align-items: center; justify-content: center;
-            font-size: 1.2rem; font-weight: bold; cursor: pointer;
+            font-size: min(5vw, 4dvh); font-weight: bold; cursor: pointer;
             border-radius: 4px; transition: 0.2s;
         }
 
@@ -58,35 +66,35 @@
         .cell.selected { background: #f1c40f !important; color: #121212 !important; transform: scale(0.9); }
 
         #word-list {
-            display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-content: flex-start;
-            background: #1e1e1e; padding: 15px; border-radius: 8px; width: 100%; box-sizing: border-box;
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-content: flex-start;
+            background: #1e1e1e; padding: 10px; border-radius: 8px; width: 100%; box-sizing: border-box;
             box-shadow: 0 5px 15px rgba(0,0,0,0.5); border: 2px dashed #555555;
+            max-width: min(95vw, 60dvh);
+            overflow-y: auto; flex-shrink: 1; max-height: 25dvh;
         }
 
         .word {
-            font-size: 1.1rem; font-weight: bold; padding: 5px 10px;
+            font-size: clamp(0.8rem, 2.5vw, 1.1rem); font-weight: bold; padding: 5px 10px;
             border-radius: 20px; background: #333333; color: #cccccc; transition: 0.3s;
         }
 
-        .word.active-word {
-            background: #f1c40f; color: #121212; transform: scale(1.1);
-            box-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
-        }
+        .word.active-word { background: #f1c40f; color: #121212; transform: scale(1.05); box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); }
         .word.found { text-decoration: line-through; background: #2e7d32; color: white; opacity: 0.6; }
 
         .screen {
-            display: none; flex-direction: column; align-items: center;
-            margin-top: 20px; text-align: center; background: #1e1e1e;
-            padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-            width: 100%; max-width: 400px; box-sizing: border-box;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            margin: auto; text-align: center; background: #1e1e1e;
+            padding: 20px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            width: 90%; max-width: 400px; box-sizing: border-box;
+            max-height: 90dvh; overflow-y: auto;
         }
 
         #start-screen { display: none; } 
 
         button {
-            background: #3498db; color: white; border: none; padding: 15px 30px;
-            font-size: 1.2rem; font-weight: bold; border-radius: 8px; cursor: pointer;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-family: inherit; margin-top: 15px;
+            background: #3498db; color: white; border: none; padding: 12px 20px;
+            font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); font-family: inherit; margin-top: 10px;
             transition: 0.2s; width: 100%;
         }
         button:hover { background: #2980b9; }
@@ -95,24 +103,26 @@
         button:active { transform: translateY(2px); box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
 
         /* =========================================
-           DESKTOP & LANDSCAPE (16:9) ADAPTABILITY
+           LANDSCAPE / DESKTOP ADAPTABILITY
            ========================================= */
-        @media (min-aspect-ratio: 1/1) { 
-            #header-stats { max-width: 900px; }
+        @media (orientation: landscape) and (min-height: 400px) { 
             #game-area {
                 flex-direction: row; 
-                align-items: stretch;
-                justify-content: center;
-                max-width: 900px; 
+                align-items: center;
+                gap: 20px;
             }
             #grid {
-                width: calc(100vh - 200px); 
-                max-width: 600px; 
-                flex-shrink: 0;
+                max-width: min(70vw, 75dvh); /* Gets bigger in landscape */
+                margin: auto;
+            }
+            .cell {
+                font-size: min(4vw, 5dvh);
             }
             #word-list {
-                flex: 1; 
-                max-width: 350px;
+                flex-direction: column; flex-wrap: nowrap;
+                flex: 0 0 220px; /* Fixed width side panel */
+                max-width: 250px;
+                max-height: 75dvh;
             }
         }
     </style>
@@ -123,7 +133,7 @@
     <div id="instructions">Loading game assets...</div>
 
     <div id="start-screen" class="screen">
-        <div class="emoji-art" style="font-size: 4rem; margin-bottom: 15px;">🔎🧠</div>
+        <div class="emoji-art" style="font-size: 3rem; margin-bottom: 10px;">🔎🧠</div>
         <h2>Ready to Play?</h2>
         <p style="color: #aaa; font-size: 0.9rem;">Find the highlighted words before the timer runs out!</p>
         <button onclick="startGameFromMenu()">▶ Play Game</button>
@@ -142,28 +152,28 @@
     </div>
 
     <div id="win-screen" class="screen">
-        <div class="emoji-art" style="font-size: 4rem; margin-bottom: 15px;">🎉</div>
+        <div class="emoji-art" style="font-size: 3rem; margin-bottom: 10px;">🎉</div>
         <h2>Level Complete!</h2>
-        <div class="reward-text" id="reward-message" style="color: #4CAF50; font-size: 1.5rem; margin-top: 5px; margin-bottom: 15px;">+1 Life ❤️</div>
+        <div class="reward-text" id="reward-message" style="color: #4CAF50; font-size: 1.3rem; margin-top: 5px; margin-bottom: 10px;">+1 Life ❤️</div>
         <button onclick="nextLevel()">Next Level</button>
     </div>
 
     <div id="game-over-screen" class="screen">
-        <div class="emoji-art" style="font-size: 4rem; margin-bottom: 15px;">⏰</div>
+        <div class="emoji-art" style="font-size: 3rem; margin-bottom: 10px;">⏰</div>
         <h2>Out of Lives!</h2>
         <p>You ran out of time.</p>
         <button class="ad-btn" onclick="watchAdToContinue()">📺 Watch Ad to Refill Lives</button>
     </div>
 
     <div id="pause-screen" class="screen">
-        <div class="emoji-art" style="font-size: 4rem; margin-bottom: 15px;">☕</div>
+        <div class="emoji-art" style="font-size: 3rem; margin-bottom: 10px;">☕</div>
         <h2>Game Paused</h2>
         <button onclick="resumeGame()">Resume Game</button>
         <button class="ad-btn" onclick="watchAdToRefillLives()">📺 Watch Ad to Refill Lives</button>
     </div>
 
     <script>
-        // --- POKI SDK SAFE WRAPPERS (Crash-proof for Adblockers) ---
+        // --- POKI SDK SAFE WRAPPERS ---
         let isPokiLoaded = (typeof PokiSDK !== 'undefined');
 
         if (isPokiLoaded) {
@@ -177,16 +187,33 @@
             console.warn("Poki SDK is blocked by your browser! Running in standalone mode.");
         }
 
-        // Poki Events
         function pokiLoadingFinished() { if (isPokiLoaded) PokiSDK.gameLoadingFinished(); }
         function pokiGameplayStart() { if (isPokiLoaded) PokiSDK.gameplayStart(); }
         function pokiGameplayStop() { if (isPokiLoaded) PokiSDK.gameplayStop(); }
+        
+        function pokiCommercialBreak(callback) {
+            if (isPokiLoaded) {
+                suspendAudio(); 
+                PokiSDK.commercialBreak().then(() => {
+                    resumeAudio();
+                    if (callback) callback();
+                });
+            } else {
+                console.log("SDK missing - Simulating commercial break success.");
+                if (callback) callback();
+            }
+        }
+
         function pokiRewardedBreak(callback) {
             if (isPokiLoaded) {
-                PokiSDK.rewardedBreak().then(callback);
+                suspendAudio(); 
+                PokiSDK.rewardedBreak().then((success) => {
+                    resumeAudio();
+                    callback(success);
+                });
             } else {
                 console.log("SDK missing - Simulating ad success.");
-                callback(true); // Grant reward anyway if adblock is on
+                callback(true);
             }
         }
 
@@ -234,6 +261,7 @@
 
         // --- GAME VARIABLES ---
         const GRID_SIZE = 10;
+        const AD_FREQUENCY = 1; // <--- EDIT THIS VARIABLE to control mid-roll ad frequency!
         const WORDS_URL = 'words.txt'; 
         let masterWordBank = [], availableWords = [], usedWords = [], grid = [], wordsToFind = [];
         let selectedCell = null, currentLevel = 1, lives = 7, currentWordIndex = 0, timeLeft = 45, timerInterval = null;
@@ -288,7 +316,6 @@
                 instructionsEl.style.display = "none"; 
                 startScreen.style.display = "flex"; 
                 
-                // POKI: Loading finished
                 pokiLoadingFinished(); 
             } catch (error) {
                 instructionsEl.innerHTML = "<span style='color: #ff5252;'>Error: Could not load words.txt.</span>";
@@ -328,8 +355,6 @@
         function pauseGame() {
             soundClick();
             clearInterval(timerInterval);
-            
-            // POKI: Game paused, stop tracking
             pokiGameplayStop();
             
             gameAreaEl.style.display = "none";
@@ -341,7 +366,6 @@
             pauseScreen.style.display = "none";
             gameAreaEl.style.display = "flex";
             
-            // POKI: Game resumed, start tracking
             pokiGameplayStart(); 
             resumeTimer();
         }
@@ -353,7 +377,6 @@
 
             if (lives <= 0) {
                 soundLose();
-                // POKI: Level over, stop tracking
                 pokiGameplayStop(); 
                 
                 gameAreaEl.style.display = "none";
@@ -372,10 +395,8 @@
         function watchAdToRefillLives() {
             soundClick();
             if (lives >= 7) { alert("You already have maximum lives! ❤️"); return; }
-            suspendAudio();
             
             pokiRewardedBreak((success) => {
-                resumeAudio();
                 if (success) {
                     lives = 7; 
                     updateUI(); 
@@ -387,10 +408,8 @@
 
         function watchAdToContinue() {
             soundClick();
-            suspendAudio();
             
             pokiRewardedBreak((success) => {
-                resumeAudio(); 
                 if (success) {
                     lives = 7;
                     updateUI();
@@ -402,8 +421,21 @@
             });
         }
 
+        // --- NEW AD FREQUENCY LOGIC ---
         function nextLevel() {
             soundSelect();
+            // Check if current level is a multiple of AD_FREQUENCY
+            if (currentLevel % AD_FREQUENCY === 0) {
+                pokiCommercialBreak(() => {
+                    advanceToNextLevel();
+                });
+            } else {
+                advanceToNextLevel();
+            }
+        }
+
+        // Helper function so we don't duplicate code
+        function advanceToNextLevel() {
             currentLevel++;
             saveGameData();
             initGame();
@@ -456,7 +488,6 @@
             renderGrid();
             renderWordList();
             
-            // POKI: Player input received, start tracking
             pokiGameplayStart(); 
             startTimer();
         }
@@ -560,8 +591,6 @@
                 
                 if (currentWordIndex === wordsToFind.length) {
                     clearInterval(timerInterval);
-                    
-                    // POKI: Level complete, stop tracking
                     pokiGameplayStop(); 
                     
                     setTimeout(() => soundWin(), 300); 
